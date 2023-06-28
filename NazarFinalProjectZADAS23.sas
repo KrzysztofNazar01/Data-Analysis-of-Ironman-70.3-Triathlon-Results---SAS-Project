@@ -11,6 +11,7 @@ proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2019_
 data results_2019_formatted;
 	set results_2019(drop=name bib);
 	where 'Finish status'n = "Finisher";
+	EventYear=2019;
 run;
 
 proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2018_results_0.csv'
@@ -21,6 +22,7 @@ proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2018_
 data results_2018_formatted;
 	set results_2018(drop=name bib);
 	where 'Finish status'n = "Finisher";
+	EventYear=2018;
 run;
 
 proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2017_results_0.csv'
@@ -31,6 +33,7 @@ proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2017_
 data results_2017_formatted;
 	set results_2017(drop=name bib);
 	where 'Finish status'n = "Finisher";
+	EventYear=2017;
 run;
 
 /* Create the results master datasets - using a new command "union all and alter table"*/
@@ -81,11 +84,36 @@ run;
 proc rank data=results_all out=results_all;
 	var TransitionTime;
 	ranks TransitionRank;
+	label TransitionRank='TransitionRank';
 
 proc print data=results_all (obs=10);
 
 proc contents data=results_all;
 
+
+/* ANALYSIS - Analyze participants by year and gender */
+
+proc means data=results_all noprint;
+    class EventYear Gender;
+    output out=participant_count_by_year_means(drop=_type_ _freq_) n=ParticipantCount;
+run;
+
+* Exclude unneeded values;
+data plot_pax_by_year_gender;
+	set participant_count_by_year_means;
+	where EventYear ne .;
+	format EventYear number4.;
+run;
+
+* Plot Number of Participants by Year and Gender;
+proc sgplot data=plot_pax_by_year_gender;
+    title 'Number of Participants by Year and Gender';
+    vbar EventYear / response=ParticipantCount group=Gender
+                     groupdisplay=stack /*groupdisplay=cluster*/ barwidth=0.4 datalabel datalabelattrs=(size=10) seglabel; 
+    keylegend;
+    xaxis label='Event Year';
+    yaxis label='Number of Participants' grid;
+run;
 
 
 /* ANALYSIS - COUNTRIES AND MAPS */
@@ -196,13 +224,13 @@ Title 'Participants and Best Participants by country sorted by the proportion - 
 
 /* ANALYSIS - BAR PLOTS */
 proc gchart data=results_all;
-	vbar Overalltime / group=Gender;
+	hbar Overalltime / group=Gender;
 	where Gender = 'Fema';
 	title 'Distribution of Overall Time of Female Participant';
 run;
 
 proc gchart data=results_all;
-	vbar Overalltime / group=Gender;
+	hbar Overalltime / group=Gender;
 	where Gender = 'Male';
 	title 'Distribution of Overall Time of Male Participant';
 run;
@@ -251,7 +279,6 @@ data results_ranks_corr;
   					   RunRank 
   					   TransitionRank
   					   Gender);
-  	label TransitionRank='TransitionRank';
 
 /* Look at the first column --> correlation between the Overall Rank and other ranks
 Results - the highest correlations with the overall rank:
