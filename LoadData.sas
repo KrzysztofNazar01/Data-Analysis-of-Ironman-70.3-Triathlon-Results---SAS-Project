@@ -115,6 +115,12 @@ data results_all;
 	format OverallTime SwimTime BikeRank RunTime TIME10.; 
 run;
 
+/* Delete a row if there is a missing value (".") in SwimTime, BikeTime or RunTime column */
+data results_all;
+    set results_all;
+    if missing(SwimTime) or missing(BikeTime) or missing(RunTime) then delete;
+run;
+
 /* Calculate transition times */
 data results_all;
     set results_all;
@@ -128,5 +134,8 @@ proc contents data=results_all;
 /* proc print data=results_all; */
 /* 	title 'Output Dataset: results_all'; */
 /* run; */
+
+
+proc print data=results_all (obs=10);
 
 

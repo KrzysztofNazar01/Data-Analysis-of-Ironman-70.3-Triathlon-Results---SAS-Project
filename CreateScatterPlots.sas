@@ -40,11 +40,11 @@ proc rank data=results_ranks_corr out=results_ranks_corr_all;
 	ranks TransitionRank; * new variable that holds the order of sotring;
 
 /* Look at the first column --> correlation between the Overall Rank and other ranks
-The highest correlations with the overall rank:
- - bike rank
- - run rank
- - swim rank
- - transition rank
+Results - the highest correlations with the overall rank:
+ - bike rank 0.95989
+ - run rank 0.92900
+ - swim rank 0.74933
+ - transition rank 0.64531
 */
 proc corr data=results_ranks_corr_all plots=matrix(histogram); 
 var OverallRank

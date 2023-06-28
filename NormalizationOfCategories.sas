@@ -8,9 +8,13 @@
 data results_times;
   set results_all(keep=OverallTime
   					   SwimTime
-  					   BikeTime 
+  					   BikeTime
   					   RunTime 
-  					   TransitionTime);
+  					   OverallRank
+  					   SwimRank
+  					   BikeRank 
+  					   RunRank 
+  					   Gender);
 
 proc print data=results_times (obs=10);
 
@@ -31,7 +35,6 @@ proc print data=results_times (obs=10);
 /*     drop Median_Time_sec BikeTime_sec Median_Time; */
 /* run; */
 /*  */
-
 
 
 
@@ -65,11 +68,46 @@ run;
 run;
 %normalize_time(results_times, RunTime);
 run;
-%normalize_time(results_times, TransitionTime);
-run;
 
 proc print data=results_times (obs=10);
 
+
+
+/* df['Total_norm'] = df['Bike_hours_norm'] + df['Swim_hours_norm'] + df['Run_hours_norm'] */
+data results_times;
+set results_times;
+	Total_norm = SwimTimeNorm + BikeTimeNorm + RunTimeNorm;
+
+proc rank data=results_times descending out=results_times_rank;
+	var Total_norm;
+	ranks Total_norm_rank; * new variable that holds the order of sotring;
+
+
+
+
+* Scatterplot - Run Rank vs Overall Rank by Gender;
+proc sgplot data=results_times_rank;
+	scatter x=RunRank y=Total_norm_rank / group=Gender;
+	title 'Run Rank vs Total_norm_rank by Gender';
+	
+* Scatterplot - Run Rank vs Overall Rank by Gender;
+proc sgplot data=results_times;
+	scatter x=RunTimeNorm y=OverallTime / group=Gender;
+	title 'Run Time Norm vs Overall Rank by Gender';
+
+proc corr data=results_times plots=matrix(histogram); 
+var OverallTime
+  	SwimTime
+  	BikeTime 
+  	RunTime 
+  	
+  	OverallTimeNorm
+  	SwimTimeNorm
+  	BikeTimeNorm 
+  	RunTimeNorm
+  	
+	 ;
+run;
 
 
 
