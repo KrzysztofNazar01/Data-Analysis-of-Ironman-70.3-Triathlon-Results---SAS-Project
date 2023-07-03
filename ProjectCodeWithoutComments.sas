@@ -1,36 +1,32 @@
-proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2019_results_1.csv'
-	dbms=csv out=results_2019 replace;
-	delimiter=',';
-	getnames=yes;
-	
-data results_2019_formatted;
-	set results_2019(drop=name bib);
-	where 'Finish status'n = "Finisher";
-	EventYear=2019;
-run;
-
-proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2018_results_1.csv'
-	dbms=csv out=results_2018 replace;
-	delimiter=',';
-	getnames=yes;
-
-data results_2018_formatted;
-	set results_2018(drop=name bib);
-	where 'Finish status'n = "Finisher";
-	EventYear=2018;
-run;
-
-proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_703_2017_results_1.csv'
+proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_results_2017.csv'
 	dbms=csv out=results_2017 replace;
 	delimiter=',';
 	getnames=yes;
 	
 data results_2017_formatted;
 	set results_2017(drop=name bib);
-	where 'Finish status'n = "Finisher";
 	EventYear=2017;
 run;
 
+proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_results_2018.csv'
+	dbms=csv out=results_2018 replace;
+	delimiter=',';
+	getnames=yes;
+
+data results_2018_formatted;
+	set results_2018(drop=name bib);
+	EventYear=2018;
+run;
+
+proc import datafile='/home/u63345464/sasuser.v94/Project/Data/Ironman_results_2019.csv'
+	dbms=csv out=results_2019 replace;
+	delimiter=',';
+	getnames=yes;
+	
+data results_2019_formatted;
+	set results_2019(drop=name bib);
+	EventYear=2019;
+run;
 
 proc sql;
     create table results_all as
@@ -39,13 +35,14 @@ proc sql;
         select * from results_2018_formatted
         union all
         select * from results_2019_formatted;
-    alter table results_all
-        drop 'Finish status'n;
 quit;
 
+data results_finishers(drop='Finish status'n);
+    set results_all(where=('Finish status'n = "Finisher"));
+run;
 
-data results_all;
-    set results_all(rename=(
+data results_finishers;
+    set results_finishers(rename=(
 	    'Division Rank'n=DivisionRank
 	    'Overall Time'n=OverallTime
 	    'Overall Rank'n=OverallRank
@@ -72,67 +69,60 @@ data results_all;
 	    RunRank='Run Rank';
 run;
 
-
-data results_all;
-    set results_all;
+data results_finishers;
+    set results_finishers;
     if missing(SwimTime) or missing(BikeTime) or missing(RunTime) then delete;
 run;
 
-
-
-
-data results_all;
-    set results_all;
+data results_finishers;
+    set results_finishers;
  	AllCategoriesTime = SwimTime + BikeTime + RunTime;
     TransitionTime = intck("second", allCategoriesTime, OverallTime);
 	label TransitionTime='Transition Time (H:MM:SS)';
     format
     	OverallTime SwimTime BikeTime RunTime TransitionTime AllCategoriesTime TIME10.
-    	OverallRank SwimRank BikeRank RunRank TransitionRank DivisionRank Number6. ; 
+    	OverallRank SwimRank BikeRank RunRank TransitionRank DivisionRank Number6.; 
 run;
 
-
-proc rank data=results_all out=results_all;
+proc rank data=results_finishers out=results_finishers;
 	var TransitionTime;
 	ranks TransitionRank;
 	label TransitionRank='Transition Rank';
 	format TransitionRank BEST12.;
 	
-proc print data=results_all (obs=10) label;
+proc print data=results_finishers (obs=10) label;
 
-proc contents data=results_all;
-
-
+proc contents data=results_finishers;
 
 
-proc means data=results_all noprint;
+proc means data=results_finishers noprint;
     class EventYear Gender;
     output out=participant_count_by_year_means(drop=_type_ _freq_) n=ParticipantCount;
 run;
-
 
 data plot_pax_by_year_gender;
 	set participant_count_by_year_means;
 	where EventYear ne .;
 run;
 
+proc print data=plot_pax_by_year_gender;
 
 proc sgplot data=plot_pax_by_year_gender;
-    title 'Number of Participants by Year and Gender';
+    title 'Number of participants by event year and gender';
+    styleattrs datacolors=("#d15b5b" "#6f7fb3");
     vbar EventYear / response=ParticipantCount group=Gender
-                     groupdisplay=stack  barwidth=0.4 datalabel datalabelattrs=(size=11) seglabel seglabelattrs=(size=10); 
-    keylegend;
-    xaxis label='Event Year';
-    yaxis label='Number of Participants' grid;
+                     groupdisplay=stack barwidth=0.4 datalabel datalabelattrs=(size=11) seglabel seglabelattrs=(size=10); 
+    legenditem type=marker name="F" / label="Female" markerattrs=(symbol=squarefilled color="#d15b5b" size=9);
+    legenditem type=marker name="M" / label="Male" markerattrs=(symbol=squarefilled color="#6f7fb3" size=9);    
+    xaxis label='Event year';
+    yaxis label='Number of participants' grid;
+    keylegend "M" "F" / title="Gender";
 run;
-
-
-
 
 proc sql;
 	create table paxes_by_country as
 	select Country, count(*) as NumOfParticipants
-	from results_all
+	from results_all 
 	group by Country;
 quit;
 
@@ -142,7 +132,7 @@ data paxes_by_country;
 	format NumOfParticipants number5.;
 
 data worldmap;
-	set mapsgfk.world; 
+	set mapsgfk.world;
 	Country = idname;
 	
 proc gmap data=paxes_by_country map=worldmap all;
@@ -151,29 +141,32 @@ proc gmap data=paxes_by_country map=worldmap all;
 	title 'Number of participants by country';
 run;
 
-
 proc sort data = paxes_by_country;
   	by descending NumOfParticipants; 
 run;
 proc print data=paxes_by_country (obs=10) label;
 Title 'Number of participants by country - top 10';
 
+proc tabulate data=results_all out=tabulate_out;
+	class 'Finish status'n / order=freq; 
+	class country / order=freq;
+	var 'overall time'n;
+	table country, 'Finish status'n ;
+	title 'Number of participants from country by finish status';
 
-
-proc sort data=results_all;
+proc sort data=results_finishers;
     by Country;
 run;
 
-
 data best_results_by_country;
-  set results_all(keep=Country OverallRank); 
+  set results_finishers(keep=Country OverallRank); 
   where OverallRank <= 100; 
   by Country;
   
   if first.Country then NumOfBestParticipants = 0; 
   NumOfBestParticipants + 1;
   
-  if last.Country then output;
+  if last.Country then output; 
   drop OverallRank;
 run;
 
@@ -188,19 +181,15 @@ data worldmap;
 
 proc gmap data=best_results_by_country map=worldmap all;
 	id Country;
-	choro NumOfBestParticipants / levels=5 legend=NumOfBestParticipants; 
+	choro NumOfBestParticipants / levels=5 legend=NumOfBestParticipants;
 	title 'Number of best participants by country';
 run;
-
 
 proc sort data = best_results_by_country;
   	by descending NumOfBestParticipants; 
 run;
 proc print data=best_results_by_country (obs=10) label;
 Title 'Number of best participants by country - top 10';
-
-
-
 
 
 proc sql;
@@ -220,30 +209,28 @@ data results_paxes_by_country;
       NumOfParticipants='Number of participants'
       NumOfBestParticipants='Number of best participants'
       paxes_diff='Difference between all participants and best participants'
-      ParticipantsProp='Proprtion of best participants to all participants';
+      ParticipantsProp='Proportion of best participants to all participants';
 	format ParticipantsProp percent10.2;
 	
 proc sort data = results_paxes_by_country;
   	by descending paxes_diff; 
 run;
 
-proc print data=results_paxes_by_country (obs=20) label;
+proc print data=results_paxes_by_country (obs=10) label;
 	var Country NumOfParticipants NumOfBestParticipants paxes_diff;
-	title 'Participants and Best Participants by country sorted by the difference - top 20';
+	title 'Participants and Best Participants by country sorted by the difference - top 10';
 
 proc sort data = results_paxes_by_country;
-  	by descending ParticipantsProp; 
+  	by descending NumOfParticipants; 
 run;
 
-proc print data=results_paxes_by_country (obs=20) label;
+proc print data=results_paxes_by_country (obs=10) label;
 	var Country NumOfParticipants NumOfBestParticipants ParticipantsProp;
-	title 'Participants and Best Participants by country sorted by the proportion - top 20';
+	title 'Participants and Best Participants by country sorted by the proportion - top 10';
 
-
-proc import datafile='/home/u63345464/sasuser.v94/Project/Data/API_NY.GDP.MKTP.CD_DS2_en_excel_v2_5551619_edited.xls'
+proc import datafile='/home/u63345464/sasuser.v94/Project/Data/API_NY.GDP.MKTP.CD_DS2_en_excel_v2_5607200.xls'
 	dbms=xls out=countr_gdp replace;
 	range='Data$A4:BN270';
-
 
 data countr_gdp_formatted;
 	set countr_gdp(
@@ -253,10 +240,10 @@ data countr_gdp_formatted;
 	label
 		CountryName='Country Name'
 		GDP2019='GDP in 2019';
-	format GDP2019 DOLLAR30.2;
+	format GDP2019 DOLLAR30.;
 run;
-
-proc import datafile='/home/u63345464/sasuser.v94/Project/Data/API_SP.POP.TOTL_DS2_en_excel_v2_5551740_edited.xls'
+ 
+proc import datafile='/home/u63345464/sasuser.v94/Project/Data/API_SP.POP.TOTL_DS2_en_excel_v2_5607126.xls'
 	dbms=xls out=countr_pop replace;
 	range='Data$A4:BN270';
 
@@ -270,7 +257,7 @@ data countr_pop_formatted;
 		POP2019='Population in 2019';	
 	format POP2019 15.;
 run;
- 
+
 
 proc sql;
     create table CountriesGDPPOP as
@@ -285,11 +272,11 @@ data CountriesGDPPOP;
     GDPPC2019 = GDP2019 / POP2019;
 	label
 		CountryName='Country Name'
-		GDP2019='GDP in 2019'
+		GDP2019='GDP in 2019 (USD)'
 		POP2019='Population in 2019'		
-		GDPPC2019='GDP per capita in 2019'
+		GDPPC2019='GDP per capita in 2019 (USD)'
 		;	
-    format GDPPC2019 DOLLAR30.2;
+    format GDPPC2019 DOLLAR30.;
 run;
 
 proc sort data=CountriesGDPPOP;
@@ -304,8 +291,6 @@ proc sort data=results_paxes_by_country;
 	by descending NumOfParticipants;
 run;
 
-
-
 proc sql;
     create table CountriesGDPPOPmerged as
     select a.CountryName, a.GDP2019, a.GDPPC2019, b.NumOfParticipants, b.NumOfBestParticipants, b.ParticipantsProp
@@ -313,7 +298,6 @@ proc sql;
     right join results_paxes_by_country as b
     on a.CountryName = b.Country;
 quit;
-
 
 data CountriesGDPPOPmerged;
     set CountriesGDPPOPmerged;
@@ -334,86 +318,89 @@ proc corr data=CountriesGDPPOPmerged plots=matrix(histogram);
 	title 'Correlation results between GDP, GDP per capita and number of participants';
 run;
 
-%macro create_box_plot_by_division(dataset, gender);
+
+%macro plot_division_by_gender(dataset, gender);
 
     data &dataset._&gender.;
         set &dataset.;
         where Gender = "&gender.";
     run;
 
-
     proc sort data=&dataset._&gender.;
         by OverallTime;
     run;
 
-
     proc sgplot data=&dataset._&gender.;
         vbox OverallTime / category=Division;
         xaxis label='Division' grid;
-        yaxis label='Overall Time' grid;
-        title "Overall Time of &gender. Participants by Division (gender and age group)";
-    run;
-%mend;
+        yaxis label='Overall Time (H:MM)' grid;
+        
 
-%create_box_plot_by_division(results_all, Male);
-%create_box_plot_by_division(results_all, Fema);
+        %if &gender = Fema %then %do;
+        	title "Overall Time of Female Participants by Division (gender and age group)";
+    	%end;
+    	%else %do;
+        	title "Overall Time of Male Participants by Division (gender and age group)";
+    	%end;
+   run;
+%mend plot_division_by_gender;
 
-proc gchart data=results_all;
+%plot_division_by_gender(results_finishers, Male);
+%plot_division_by_gender(results_finishers, Fema);
+
+proc gchart data=results_finishers;
 	hbar Overalltime / group=Gender;
 	where Gender = 'Fema';
 	title 'Distribution of Overall Time of Female Participant';
 run;
 
-proc gchart data=results_all;
+proc gchart data=results_finishers;
 	hbar Overalltime / group=Gender;
 	where Gender = 'Male';
 	title 'Distribution of Overall Time of Male Participant';
 run;
 
 data grouped_data;
-   set results_all(keep=Gender Overalltime);
+   set results_finishers(keep=Gender Overalltime);
    Overall_Time_Group = floor(Overalltime / 3600); 
 run;
 
 title "Distribution of Overall Time of All Participants - intervals of 60 minutes";
 proc sgplot data = grouped_data;
     vbar Overall_Time_Group / group = Gender groupdisplay = cluster;
+    xaxis label='Overall Time (Hours)';
+    yaxis label='Number of Participants';
 run;
 
 
-
-proc sgplot data=results_all;
-	scatter x=transitionTime y=OverallTime / group=Gender; 
-
+proc sgplot data=results_finishers;
+	scatter x=transitionTime y=OverallTime / group=Gender;
 	title 'Transition Time vs Overall Time by Gender';
 	XAXIS grid label='Transition Time (H:MM)';
 	YAXIS grid label='Overall Time (H:MM)';
 
 
-proc sgplot data=results_all;
+proc sgplot data=results_finishers;
 	scatter x=transitionRank y=OverallRank / group=Gender; 
 	title 'Transition Rank vs Overall Rank by Gender';
 	XAXIS grid label='Transition Rank';
 	YAXIS grid label='Overall Rank';
 
 
-proc sgplot data=results_all;
+proc sgplot data=results_finishers;
     scatter x=SwimRank y=OverallRank / group=Gender;
     title 'Swim Rank vs Overall Rank by Gender';
 	XAXIS grid label='Swim Rank';
 	YAXIS grid label='Overall Rank';
 run;
 
-
-
-proc sgplot data=results_all;
+proc sgplot data=results_finishers;
 	scatter x=BikeRank y=OverallRank / group=Gender;
 	title 'Bike Rank vs Overall Rank by Gender';
 	XAXIS grid label='Bike Rank';
 	YAXIS grid label='Overall Rank';
 	
-
-proc sgplot data=results_all;
+proc sgplot data=results_finishers;
 	scatter x=RunRank y=OverallRank / group=Gender;
 	title 'Run Rank vs Overall Rank by Gender';
 	XAXIS grid label='Run Rank';
@@ -421,21 +408,19 @@ proc sgplot data=results_all;
 
 
 data results_ranks_corr;
-	set results_all(keep=OverallRank
+	set results_finishers(keep=OverallRank
   					   SwimRank
   					   BikeRank
   					   RunRank 
   					   TransitionRank
   					   Gender);
 
-
 proc corr data=results_ranks_corr plots=matrix(histogram); 
 var OverallRank
 	SwimRank
 	BikeRank
 	RunRank 
-	TransitionRank
-	 ;
+	TransitionRank;
 run;
 
 proc sgscatter data=results_ranks_corr; 
@@ -448,7 +433,7 @@ matrix OverallRank
 run;
 
 data results_times;
-  set results_all(keep=OverallTime
+  set results_finishers(keep=OverallTime
   					   SwimTime
   					   BikeTime
   					   RunTime 
@@ -494,20 +479,27 @@ set results_times;
 
 proc rank data=results_times out=results_times_rank;
 	var OverallTimeNorm;
-	ranks OverallTimeNormRank;
+	ranks OverallTimeNormRank; 
 	label OverallTimeNormRank='Overall Time Normalized Rank';
 
 proc sgplot data=results_times_rank;
 	scatter x=SwimRank y=OverallTimeNormRank / group=Gender;
 	title 'Swim Rank vs Overall Time Normalized Rank by Gender';
+	xaxis grid;
+	yaxis grid;
 	
 proc sgplot data=results_times_rank;
 	scatter x=BikeRank y=OverallTimeNormRank / group=Gender;
 	title 'Bike Rank vs Overall Time Normalized Rank by Gender';
-
+	xaxis grid;
+	yaxis grid;
+	
 proc sgplot data=results_times_rank;
 	scatter x=RunRank y=OverallTimeNormRank / group=Gender;
 	title 'Run Rank vs Overall Time Normalized Rank by Gender';
+	xaxis grid;
+	yaxis grid;
+
 
 proc corr data=results_times_rank plots=matrix(histogram); 
 	var OverallTimeNormRank
